@@ -1,0 +1,1283 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>AiAnt Texture Map 5.3 Touch Safe</title>
+<style>
+    :root{
+        --bg:#182118;
+        --hud:#0f1711;
+        --line:rgba(180,255,210,.18);
+        --text:#e4f8eb;
+        --muted:#93b39e;
+        --accent:#7ef0a7;
+    }
+    *{box-sizing:border-box}
+    html,body{
+        margin:0;
+        width:100%;
+        height:100%;
+        overflow:hidden;
+        background:#111814;
+        color:var(--text);
+        font-family:Courier New, monospace;
+        touch-action:none;
+    }
+    body{
+        -webkit-user-select:none;
+        user-select:none;
+        -webkit-tap-highlight-color:transparent;
+    }
+    #wrap{
+        position:fixed;
+        inset:0;
+        display:flex;
+        flex-direction:column;
+    }
+    #hud{
+        flex:0 0 auto;
+        background:rgba(8,14,11,.9);
+        border-bottom:1px solid var(--line);
+        display:flex;
+        gap:18px;
+        padding:8px 12px;
+        z-index:10;
+        font-size:13px;
+        backdrop-filter:blur(6px);
+    }
+    .hud-col{display:flex;flex-direction:column;gap:6px}
+    .row{display:flex;gap:12px;flex-wrap:wrap}
+    .label{color:var(--muted)}
+    .val{color:var(--text);font-weight:700}
+    .bar-row{display:flex;align-items:center;gap:8px;min-width:280px}
+    .bar{width:150px;height:8px;background:rgba(255,255,255,.08);border-radius:5px;overflow:hidden}
+    .fill{height:100%;width:0%;transition:width .15s linear}
+    #canvas-box{
+        position:relative;
+        flex:1 1 auto;
+        overflow:hidden;
+        touch-action:none;
+    }
+    canvas{
+        display:block;
+        width:100%;
+        height:100%;
+        touch-action:none;
+    }
+    #camBtn{
+        position:absolute;
+        right:16px;
+        top:16px;
+        z-index:11;
+        background:rgba(18,33,24,.92);
+        color:#7ef0a7;
+        border:1px solid rgba(126,240,167,.35);
+        border-radius:10px;
+        padding:9px 12px;
+        font:700 13px Courier New, monospace;
+        box-shadow:0 6px 18px rgba(0,0,0,.18);
+    }
+    #zoomControls{
+        position:absolute;
+        right:16px;
+        top:64px;
+        z-index:11;
+        display:flex;
+        flex-direction:column;
+        gap:8px;
+    }
+    .zoomBtn{
+        width:44px;
+        height:44px;
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        background:rgba(18,33,24,.92);
+        color:#cffff0;
+        border:1px solid rgba(180,255,210,.22);
+        border-radius:12px;
+        font:700 22px/1 Courier New, monospace;
+        box-shadow:0 6px 18px rgba(0,0,0,.18);
+    }
+    .zoomBtn:active,
+    #camBtn:active{
+        transform:scale(.97);
+        filter:brightness(1.08);
+    }
+    #hint{
+        position:absolute;
+        left:16px;
+        bottom:14px;
+        z-index:11;
+        color:#d7e9dd;
+        background:rgba(8,14,11,.62);
+        border:1px solid rgba(255,255,255,.08);
+        border-radius:8px;
+        padding:7px 10px;
+        font-size:12px;
+        max-width:min(82vw, 360px);
+    }
+    @media (max-width: 720px){
+        #hud{
+            gap:12px;
+            padding:7px 10px;
+            font-size:12px;
+        }
+        .bar-row{min-width:220px}
+        .bar{width:116px}
+        #camBtn{top:12px;right:12px}
+        #zoomControls{top:58px;right:12px}
+        #hint{left:12px;bottom:12px;font-size:11px}
+    }
+</style>
+</head>
+<body>
+<div id="wrap">
+    <div id="hud">
+        <div class="hud-col">
+            <div class="row" style="flex-wrap:nowrap; gap:16px;">
+                <span style="display:inline-block; width:110px;"><span class="label">MODE</span> <span id="modev" class="val">INIT</span></span>
+                <span style="display:inline-block; width:70px;"><span class="label">AGE</span> <span id="agev" class="val">0</span></span>
+                <span style="display:inline-block; width:130px;"><span class="label">TARGET</span> <span id="targetv" class="val">NONE</span></span>
+                <span style="display:inline-block; width:150px;"><span class="label">GOAL</span> <span id="goalv" class="val">WANDER</span></span>
+            </div>
+            <div class="bar-row">
+                <span class="label">ENERGY</span>
+                <div class="bar"><div id="e-bar" class="fill" style="background:#67f08d"></div></div>
+                <span id="e-val" class="val">0</span>
+            </div>
+            <div class="bar-row">
+                <span class="label">HUNGER</span>
+                <div class="bar"><div id="h-bar" class="fill" style="background:#ffb14a"></div></div>
+                <span id="h-val" class="val">0</span>
+            </div>
+            <div class="bar-row">
+                <span class="label">FEAR</span>
+                <div class="bar"><div id="f-bar" class="fill" style="background:#c07cff"></div></div>
+                <span id="f-val" class="val">0</span>
+            </div>
+        </div>
+        <div class="hud-col">
+            <div class="row">
+                <span><span class="label">SPEED</span> <span id="spdv" class="val">0.0</span></span>
+                <span><span class="label">FOOD</span> <span id="foodv" class="val">0</span></span>
+                <span><span class="label">MEM</span> <span id="memv" class="val">0</span></span>
+            </div>
+            <div class="row">
+                <span><span class="label">MAP</span> <span id="mapv" class="val">0</span></span>
+                <span><span class="label">SMOOTH</span> <span id="smthv" class="val">1.0</span></span>
+                <span><span class="label">CURIOUS</span> <span id="curv" class="val">0</span></span>
+                <span><span class="label">STUCK</span> <span id="stuckv" class="val">0</span></span>
+            </div>
+        </div>
+    </div>
+
+    <div id="canvas-box">
+        <button id="camBtn" type="button">CAM FOLLOW</button>
+
+        <div id="zoomControls">
+            <button id="zoomInBtn" class="zoomBtn" type="button" aria-label="Приблизить">+</button>
+            <button id="zoomOutBtn" class="zoomBtn" type="button" aria-label="Отдалить">−</button>
+        </div>
+
+        <canvas id="c"></canvas>
+        <div id="hint">Touch: один палец — камера, два пальца — pinch zoom. Мышь отключена.</div>
+    </div>
+</div>
+
+<script>
+const c = document.getElementById('c');
+const ctx = c.getContext('2d');
+const box = document.getElementById('canvas-box');
+const camBtn = document.getElementById('camBtn');
+const zoomInBtn = document.getElementById('zoomInBtn');
+const zoomOutBtn = document.getElementById('zoomOutBtn');
+
+let state = null;
+let worldW = 4500;
+let worldH = 7000;
+let zoom = 1.0;
+let camera = {x: 0, y: 0};
+let camMode = 'follow';
+let T = 0;
+
+let rp = {x: 2250, y: 3500, dir: 0};
+let particles = [];
+let dust = [];
+
+const VIEW_W = 1500;
+const VIEW_H = 2200;
+const ANT_SCAN_RANGE = 250;
+const ANT_SCAN_ANGLE = 76;
+
+const touchState = {
+    dragging: false,
+    lastX: 0,
+    lastY: 0,
+    pinch: false,
+    pinchDist: 0,
+    pinchZoomStart: 1
+};
+
+for (let i = 0; i < 140; i++) {
+    dust.push({
+        x: Math.random() * worldW,
+        y: Math.random() * worldH,
+        vx: (Math.random() - 0.5) * 0.22,
+        vy: (Math.random() - 0.5) * 0.22,
+        r: 0.7 + Math.random() * 2.0,
+        a: 0.04 + Math.random() * 0.12,
+        ph: Math.random() * Math.PI * 2
+    });
+}
+
+function resize() {
+    c.width = box.clientWidth;
+    c.height = box.clientHeight;
+}
+window.addEventListener('resize', resize);
+resize();
+
+function getScale() {
+    return Math.min(c.width / VIEW_W, c.height / VIEW_H) * zoom;
+}
+function getViewSize() {
+    const sc = getScale();
+    return {w: c.width / sc, h: c.height / sc};
+}
+function clamp(v, lo, hi) {
+    return Math.max(lo, Math.min(hi, v));
+}
+function clampCamera() {
+    const view = getViewSize();
+    camera.x = clamp(camera.x, 0, Math.max(0, worldW - view.w));
+    camera.y = clamp(camera.y, 0, Math.max(0, worldH - view.h));
+}
+function lerp(a, b, t) {
+    return a + (b - a) * t;
+}
+function lerpA(a, b, t) {
+    let d = b - a;
+    while (d < -180) d += 360;
+    while (d > 180) d -= 360;
+    return a + d * t;
+}
+function hash2(x, y) {
+    const s = Math.sin(x * 127.1 + y * 311.7) * 43758.5453123;
+    return s - Math.floor(s);
+}
+function w2s(wx, wy, sc) {
+    return {x: (wx - camera.x) * sc, y: (wy - camera.y) * sc};
+}
+function toRad(deg) {
+    return deg * Math.PI / 180;
+}
+function dist(ax, ay, bx, by) {
+    return Math.hypot(bx - ax, by - ay);
+}
+function normAngleRad(a) {
+    while (a < -Math.PI) a += Math.PI * 2;
+    while (a > Math.PI) a -= Math.PI * 2;
+    return a;
+}
+function worldPointInVision(wx, wy, antX, antY, antDirDeg, range, angleDeg) {
+    const dx = wx - antX;
+    const dy = wy - antY;
+    const d = Math.hypot(dx, dy);
+    if (d > range) return false;
+    const targetA = Math.atan2(dy, dx);
+    const dirA = toRad(antDirDeg);
+    const diff = Math.abs(normAngleRad(targetA - dirA));
+    return diff <= toRad(angleDeg * 0.5);
+}
+function getTouchesDistance(e) {
+    if (e.touches.length < 2) return 0;
+    const a = e.touches[0];
+    const b = e.touches[1];
+    return Math.hypot(b.clientX - a.clientX, b.clientY - a.clientY);
+}
+function setCamButtonState() {
+    camBtn.innerText = camMode === 'follow' ? 'CAM FOLLOW' : 'CAM FREE';
+    camBtn.style.color = camMode === 'follow' ? '#7ef0a7' : '#ffcc64';
+    camBtn.style.borderColor = camMode === 'follow'
+        ? 'rgba(126,240,167,.35)'
+        : 'rgba(255,204,100,.45)';
+}
+function applyZoom(mult) {
+    zoom *= mult;
+    zoom = clamp(zoom, 0.55, 2.6);
+    clampCamera();
+}
+function colorAlpha(hex, alpha) {
+    const c = hex.replace('#', '');
+    const r = parseInt(c.slice(0, 2), 16);
+    const g = parseInt(c.slice(2, 4), 16);
+    const b = parseInt(c.slice(4, 6), 16);
+    return `rgba(${r},${g},${b},${alpha})`;
+}
+function mixHex(a, b, t) {
+    const ah = a.replace('#','');
+    const bh = b.replace('#','');
+    const ar = parseInt(ah.slice(0,2),16), ag = parseInt(ah.slice(2,4),16), ab = parseInt(ah.slice(4,6),16);
+    const br = parseInt(bh.slice(0,2),16), bg = parseInt(bh.slice(2,4),16), bb = parseInt(bh.slice(4,6),16);
+    const r = Math.round(ar + (br - ar) * t);
+    const g = Math.round(ag + (bg - ag) * t);
+    const bl = Math.round(ab + (bb - ab) * t);
+    return '#' + [r,g,bl].map(v => v.toString(16).padStart(2,'0')).join('');
+}
+
+function makeTile(size, painter) {
+    const off = document.createElement('canvas');
+    off.width = size;
+    off.height = size;
+    const g = off.getContext('2d');
+    painter(g, size);
+    return off;
+}
+
+const groundTile = makeTile(256, (g, s) => {
+    g.fillStyle = '#30402f';
+    g.fillRect(0, 0, s, s);
+    for (let i = 0; i < 320; i++) {
+        const x = Math.random() * s;
+        const y = Math.random() * s;
+        const r = Math.random() * 2.8 + 0.5;
+        g.fillStyle = `rgba(${50 + Math.random()*40|0},${70 + Math.random()*50|0},${45 + Math.random()*30|0},${0.08 + Math.random()*0.12})`;
+        g.beginPath();
+        g.arc(x, y, r, 0, Math.PI * 2);
+        g.fill();
+    }
+    for (let i = 0; i < 80; i++) {
+        const x = Math.random() * s;
+        const y = Math.random() * s;
+        const len = 10 + Math.random() * 28;
+        const a = Math.random() * Math.PI * 2;
+        g.strokeStyle = `rgba(20,28,20,${0.06 + Math.random()*0.1})`;
+        g.lineWidth = 1 + Math.random() * 1.4;
+        g.beginPath();
+        g.moveTo(x, y);
+        g.lineTo(x + Math.cos(a) * len, y + Math.sin(a) * len);
+        g.stroke();
+    }
+});
+
+const hazardTile = makeTile(160, (g, s) => {
+    g.fillStyle = '#4b211f';
+    g.fillRect(0, 0, s, s);
+    for (let i = 0; i < 90; i++) {
+        const x = Math.random() * s;
+        const y = Math.random() * s;
+        const len = 14 + Math.random() * 28;
+        const a = -0.9 + Math.random() * 0.6;
+        g.strokeStyle = `rgba(255,120,90,${0.08 + Math.random()*0.12})`;
+        g.lineWidth = 1 + Math.random() * 1.2;
+        g.beginPath();
+        g.moveTo(x, y);
+        g.lineTo(x + Math.cos(a) * len, y + Math.sin(a) * len);
+        g.stroke();
+    }
+});
+
+const poisonTile = makeTile(160, (g, s) => {
+    g.fillStyle = '#243c20';
+    g.fillRect(0, 0, s, s);
+    for (let i = 0; i < 140; i++) {
+        const x = Math.random() * s;
+        const y = Math.random() * s;
+        const r = 1 + Math.random() * 3.0;
+        g.fillStyle = `rgba(125,255,70,${0.05 + Math.random()*0.10})`;
+        g.beginPath();
+        g.arc(x, y, r, 0, Math.PI * 2);
+        g.fill();
+    }
+});
+
+const homeTile = makeTile(140, (g, s) => {
+    g.fillStyle = '#163548';
+    g.fillRect(0, 0, s, s);
+    g.strokeStyle = 'rgba(130,220,255,0.12)';
+    g.lineWidth = 2;
+    for (let i = 0; i < 8; i++) {
+        g.beginPath();
+        g.moveTo(0, i * 20 + 10);
+        g.lineTo(s, i * 20 + 10);
+        g.stroke();
+        g.beginPath();
+        g.moveTo(i * 20 + 10, 0);
+        g.lineTo(i * 20 + 10, s);
+        g.stroke();
+    }
+});
+
+const wallTile = makeTile(128, (g, s) => {
+    g.fillStyle = '#5a564d';
+    g.fillRect(0, 0, s, s);
+    g.strokeStyle = 'rgba(255,255,255,0.07)';
+    g.lineWidth = 2;
+    for (let y = 0; y < s; y += 20) {
+        g.beginPath();
+        g.moveTo(0, y);
+        g.lineTo(s, y);
+        g.stroke();
+    }
+    for (let x = 0; x < s; x += 32) {
+        g.beginPath();
+        g.moveTo(x, 0);
+        g.lineTo(x, s);
+        g.stroke();
+    }
+});
+
+function groundPattern() { return ctx.createPattern(groundTile, 'repeat'); }
+function hazardPattern() { return ctx.createPattern(hazardTile, 'repeat'); }
+function poisonPattern() { return ctx.createPattern(poisonTile, 'repeat'); }
+function homePattern() { return ctx.createPattern(homeTile, 'repeat'); }
+function wallPattern() { return ctx.createPattern(wallTile, 'repeat'); }
+
+camBtn.onclick = () => {
+    camMode = camMode === 'follow' ? 'free' : 'follow';
+    setCamButtonState();
+};
+zoomInBtn.onclick = () => applyZoom(1.14);
+zoomOutBtn.onclick = () => applyZoom(0.88);
+setCamButtonState();
+
+c.addEventListener('wheel', (e) => {
+    e.preventDefault();
+}, {passive:false});
+
+c.addEventListener('mousedown', (e) => e.preventDefault());
+c.addEventListener('mousemove', (e) => e.preventDefault());
+c.addEventListener('mouseup', (e) => e.preventDefault());
+
+c.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+
+    if (e.touches.length === 1) {
+        const t = e.touches[0];
+        touchState.dragging = true;
+        touchState.pinch = false;
+        touchState.lastX = t.clientX;
+        touchState.lastY = t.clientY;
+        camMode = 'free';
+        setCamButtonState();
+    } else if (e.touches.length >= 2) {
+        touchState.dragging = false;
+        touchState.pinch = true;
+        touchState.pinchDist = getTouchesDistance(e);
+        touchState.pinchZoomStart = zoom;
+        camMode = 'free';
+        setCamButtonState();
+    }
+}, {passive:false});
+
+c.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+
+    if (e.touches.length >= 2 && touchState.pinch) {
+        const d = getTouchesDistance(e);
+        if (touchState.pinchDist > 0) {
+            zoom = clamp(touchState.pinchZoomStart * (d / touchState.pinchDist), 0.55, 2.6);
+            clampCamera();
+        }
+        return;
+    }
+
+    if (e.touches.length === 1 && touchState.dragging) {
+        const t = e.touches[0];
+        const sc = getScale();
+        camera.x -= (t.clientX - touchState.lastX) / sc;
+        camera.y -= (t.clientY - touchState.lastY) / sc;
+        touchState.lastX = t.clientX;
+        touchState.lastY = t.clientY;
+        clampCamera();
+    }
+}, {passive:false});
+
+c.addEventListener('touchend', (e) => {
+    e.preventDefault();
+    if (e.touches.length === 0) {
+        touchState.dragging = false;
+        touchState.pinch = false;
+    } else if (e.touches.length === 1) {
+        const t = e.touches[0];
+        touchState.dragging = true;
+        touchState.pinch = false;
+        touchState.lastX = t.clientX;
+        touchState.lastY = t.clientY;
+    }
+}, {passive:false});
+
+c.addEventListener('touchcancel', () => {
+    touchState.dragging = false;
+    touchState.pinch = false;
+}, {passive:false});
+
+async function fetchState() {
+    try {
+        const res = await fetch('/state');
+        const st = await res.json();
+        state = st;
+        worldW = st.worldw || worldW;
+        worldH = st.worldh || worldH;
+
+        rp.x = lerp(rp.x, st.x, 0.26);
+        rp.y = lerp(rp.y, st.y, 0.26);
+        rp.dir = lerpA(rp.dir, st.direction || 0, 0.18);
+
+        particles.push({
+            x: st.x,
+            y: st.y,
+            life: 1.0,
+            color: getDominantDriveVisual(st).color,
+            size: 3 + Math.random() * 3
+        });
+        if (particles.length > 120) particles.splice(0, particles.length - 120);
+
+        if (camMode === 'follow') {
+            const view = getViewSize();
+            camera.x = lerp(camera.x, rp.x - view.w * 0.46, 0.08);
+            camera.y = lerp(camera.y, rp.y - view.h * 0.58, 0.08);
+            clampCamera();
+        }
+
+        updateHUD();
+    } catch (e) {}
+}
+
+function updateHUD() {
+    if (!state) return;
+    document.getElementById('modev').innerText = (state.mode || 'wander').toUpperCase();
+    document.getElementById('agev').innerText = state.age || 0;
+    document.getElementById('targetv').innerText = state.target ? String(state.target.kind || 'none').toUpperCase() : 'NONE';
+    document.getElementById('goalv').innerText = (state.current_goal || 'WANDER').replace(/_/g, ' ');
+
+    document.getElementById('spdv').innerText = (state.speed || 0).toFixed(1);
+    document.getElementById('foodv').innerText = state.visiblefoodcount || 0;
+    document.getElementById('memv').innerText = (state.memory || []).length;
+    document.getElementById('mapv').innerText = (state.spatialmap || []).length;
+    document.getElementById('smthv').innerText = (state.smoothness || 0).toFixed(2);
+    document.getElementById('curv').innerText = Math.round(state.curiosity || 0);
+    document.getElementById('stuckv').innerText = state.meta_stuck_counter || 0;
+
+    const e = Math.max(0, Math.min(100, state.energy || 0));
+    const h = Math.max(0, Math.min(100, state.hunger || 0));
+    const f = Math.max(0, Math.min(100, state.fear || 0));
+    document.getElementById('e-bar').style.width = e + '%';
+    document.getElementById('h-bar').style.width = h + '%';
+    document.getElementById('f-bar').style.width = f + '%';
+    document.getElementById('e-val').innerText = e.toFixed(1);
+    document.getElementById('h-val').innerText = h.toFixed(1);
+    document.getElementById('f-val').innerText = f.toFixed(1);
+}
+
+function getModeColor(st) {
+    if (!st) return '#7ef0a7';
+    if (st.mode === 'escape' || st.mode === 'returnhome') return '#ff6f6f';
+    if (st.mode === 'searchfood' || st.mode === 'sneak') return '#58d5ff';
+    if (st.mode === 'rest') return '#78c5ff';
+    if (st.mode === 'explore') return '#d481ff';
+    return '#7ef0a7';
+}
+
+function getDominantDriveVisual(st) {
+    if (!st) return {key:'wander', color:'#7ef0a7', pulse:0.1};
+
+    const hunger = +st.hunger || 0;
+    const fear = +st.fear || 0;
+    const curiosity = +st.curiosity || 0;
+
+    if (fear >= hunger && fear >= curiosity && fear > 8) {
+        return {key:'fear', color:'#b86cff', pulse:0.9};
+    }
+    if (hunger >= fear && hunger >= curiosity && hunger > 8) {
+        return {key:'hunger', color:'#ff9e3d', pulse:0.45};
+    }
+    if (curiosity >= fear && curiosity >= hunger && curiosity > 8) {
+        return {key:'curiosity', color:'#61d8ff', pulse:0.35};
+    }
+    return {key:'wander', color:getModeColor(st), pulse:0.18};
+}
+
+function getVisionModeColor(st) {
+    if (!st) return '#9cffb2';
+    if (st.mode === 'escape' || st.mode === 'returnhome') return '#ff6767';
+    if (st.mode === 'searchfood' || st.mode === 'sneak') return '#6cd8ff';
+    return '#9cffb2';
+}
+
+function getBeamTargetFood(st) {
+    if (!st || !Array.isArray(st.foods) || st.foods.length === 0) return null;
+    const hunting = st.mode === 'searchfood' || st.mode === 'sneak';
+    if (!hunting) return null;
+
+    let best = null;
+    let bestD = Infinity;
+
+    for (const f of st.foods) {
+        if (!f || typeof f.x !== 'number' || typeof f.y !== 'number') continue;
+        const d = dist(rp.x, rp.y, f.x, f.y);
+        if (d > ANT_SCAN_RANGE) continue;
+        if (!worldPointInVision(f.x, f.y, rp.x, rp.y, rp.dir, ANT_SCAN_RANGE, ANT_SCAN_ANGLE)) continue;
+        if (d < bestD) {
+            bestD = d;
+            best = {x:f.x, y:f.y, d};
+        }
+    }
+    return best;
+}
+
+function applyWorldTransform() {
+    const sc = getScale();
+    ctx.setTransform(sc, 0, 0, sc, -camera.x * sc, -camera.y * sc);
+}
+
+function drawGround(view, sc) {
+    ctx.fillStyle = '#243223';
+    ctx.fillRect(0, 0, worldW, worldH);
+
+    ctx.globalAlpha = 0.95;
+    ctx.fillStyle = groundPattern();
+    ctx.fillRect(0, 0, worldW, worldH);
+    ctx.globalAlpha = 1;
+
+    const step = 220;
+    const gx0 = Math.floor(view.x / step) - 1;
+    const gy0 = Math.floor(view.y / step) - 1;
+    const gx1 = Math.ceil((view.x + view.w) / step) + 1;
+    const gy1 = Math.ceil((view.y + view.h) / step) + 1;
+
+    for (let gx = gx0; gx <= gx1; gx++) {
+        for (let gy = gy0; gy <= gy1; gy++) {
+            const x = gx * step;
+            const y = gy * step;
+            const n = hash2(gx, gy);
+            let fill = 'rgba(0,0,0,0.04)';
+            if (n < 0.24) fill = 'rgba(74,110,70,0.16)';
+            else if (n < 0.48) fill = 'rgba(120,106,64,0.12)';
+            else if (n < 0.72) fill = 'rgba(57,83,60,0.14)';
+            else fill = 'rgba(44,61,49,0.16)';
+
+            ctx.fillStyle = fill;
+            ctx.fillRect(x, y, step, step);
+
+            if (n > 0.72) {
+                ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+                ctx.lineWidth = 3;
+                for (let i = -1; i < 5; i++) {
+                    ctx.beginPath();
+                    ctx.moveTo(x + i * 58, y);
+                    ctx.lineTo(x + i * 58 + 90, y + step);
+                    ctx.stroke();
+                }
+            }
+        }
+    }
+
+    ctx.strokeStyle = 'rgba(0,0,0,0.16)';
+    ctx.lineWidth = 7;
+    ctx.strokeRect(0, 0, worldW, worldH);
+
+    const grid = 140;
+    ctx.strokeStyle = 'rgba(200,255,220,0.04)';
+    ctx.lineWidth = 1;
+    for (let x = Math.floor(view.x / grid) * grid; x < view.x + view.w + grid; x += grid) {
+        ctx.beginPath();
+        ctx.moveTo(x, view.y - grid);
+        ctx.lineTo(x, view.y + view.h + grid);
+        ctx.stroke();
+    }
+    for (let y = Math.floor(view.y / grid) * grid; y < view.y + view.h + grid; y += grid) {
+        ctx.beginPath();
+        ctx.moveTo(view.x - grid, y);
+        ctx.lineTo(view.x + view.w + grid, y);
+        ctx.stroke();
+    }
+
+    dust.forEach(d => {
+        d.x += d.vx;
+        d.y += d.vy;
+        if (d.x < 0) d.x = worldW;
+        if (d.x > worldW) d.x = 0;
+        if (d.y < 0) d.y = worldH;
+        if (d.y > worldH) d.y = 0;
+        const p = w2s(d.x, d.y, sc);
+        if (p.x < -10 || p.y < -10 || p.x > c.width + 10 || p.y > c.height + 10) return;
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.fillStyle = `rgba(220,235,225,${d.a * (0.7 + 0.3 * Math.sin(T * 1.2 + d.ph))})`;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, d.r, 0, Math.PI * 2);
+        ctx.fill();
+        applyWorldTransform();
+    });
+}
+
+function drawFoodClusters() {
+    if (!state || !state.foodclusters) return;
+    state.foodclusters.forEach((fc, i) => {
+        const pulse = 1 + 0.05 * Math.sin(T * 1.5 + i);
+        const r = 88 * pulse;
+        const g = ctx.createRadialGradient(fc.x, fc.y, 0, fc.x, fc.y, r);
+        g.addColorStop(0, 'rgba(255,218,120,0.07)');
+        g.addColorStop(1, 'rgba(255,218,120,0)');
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(fc.x, fc.y, r, 0, Math.PI * 2);
+        ctx.fill();
+    });
+}
+
+function drawHome() {
+    if (!state || !state.home) return;
+    const x = state.home.x;
+    const y = state.home.y;
+    const r = 150;
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.clip();
+    ctx.fillStyle = homePattern();
+    ctx.fillRect(x - r, y - r, r * 2, r * 2);
+    const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0, 'rgba(120,197,255,0.16)');
+    g.addColorStop(1, 'rgba(120,197,255,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(x - r, y - r, r * 2, r * 2);
+    ctx.restore();
+
+    ctx.strokeStyle = 'rgba(120,197,255,0.55)';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.arc(x, y, r * (1 + 0.02 * Math.sin(T * 1.5)), 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.strokeStyle = 'rgba(160,235,255,0.28)';
+    ctx.setLineDash([12, 16]);
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(x, y, r * 0.72, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+}
+
+function drawWalls() {
+    if (!state || !state.walls) return;
+    state.walls.forEach(w => {
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(w.x, w.y, w.w, w.h);
+        ctx.clip();
+        ctx.fillStyle = wallPattern();
+        ctx.fillRect(w.x, w.y, w.w, w.h);
+        ctx.restore();
+
+        ctx.fillStyle = 'rgba(0,0,0,0.10)';
+        ctx.fillRect(w.x + 6, w.y + 6, w.w, w.h);
+
+        ctx.strokeStyle = 'rgba(230,230,230,0.22)';
+        ctx.lineWidth = 3;
+        ctx.strokeRect(w.x, w.y, w.w, w.h);
+    });
+}
+
+function drawPoisonZones() {
+    if (!state || !state.poison_zones) return;
+    state.poison_zones.forEach((p, i) => {
+        const r = p.radius;
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+        ctx.clip();
+        ctx.fillStyle = poisonPattern();
+        ctx.fillRect(p.x - r, p.y - r, r * 2, r * 2);
+        const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, r);
+        g.addColorStop(0, 'rgba(120,255,90,0.14)');
+        g.addColorStop(0.7, 'rgba(120,255,90,0.08)');
+        g.addColorStop(1, 'rgba(120,255,90,0)');
+        ctx.fillStyle = g;
+        ctx.fillRect(p.x - r, p.y - r, r * 2, r * 2);
+        ctx.restore();
+
+        ctx.strokeStyle = `rgba(120,255,90,${0.22 + 0.06*Math.sin(T*2 + i)})`;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, r * (0.985 + 0.02 * Math.sin(T * 2 + i)), 0, Math.PI * 2);
+        ctx.stroke();
+    });
+}
+
+function drawHazards() {
+    if (!state || !state.hazards) return;
+    state.hazards.forEach((h, i) => {
+        const r = h.radius || h.r || 0;
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(h.x, h.y, r, 0, Math.PI * 2);
+        ctx.clip();
+        ctx.fillStyle = hazardPattern();
+        ctx.fillRect(h.x - r, h.y - r, r * 2, r * 2);
+        const g = ctx.createRadialGradient(h.x, h.y, 0, h.x, h.y, r);
+        g.addColorStop(0, 'rgba(255,70,70,0.14)');
+        g.addColorStop(0.7, 'rgba(255,70,70,0.08)');
+        g.addColorStop(1, 'rgba(255,70,70,0)');
+        ctx.fillStyle = g;
+        ctx.fillRect(h.x - r, h.y - r, r * 2, r * 2);
+        ctx.restore();
+
+        ctx.strokeStyle = `rgba(255,85,85,${0.22 + 0.08*Math.sin(T*2 + i)})`;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(h.x, h.y, r * (0.985 + 0.02 * Math.sin(T * 2 + i)), 0, Math.PI * 2);
+        ctx.stroke();
+    });
+}
+
+function drawFoods() {
+    if (!state || !state.foods) return;
+    state.foods.forEach((f, i) => {
+        const pulse = 6 + 1.5 * Math.sin(T * 2.4 + i * 0.7);
+        const g = ctx.createRadialGradient(f.x, f.y, 0, f.x, f.y, pulse * 3.2);
+        g.addColorStop(0, 'rgba(255,223,120,0.32)');
+        g.addColorStop(1, 'rgba(255,223,120,0)');
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(f.x, f.y, pulse * 3.2, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = '#f3cc63';
+        ctx.beginPath();
+        ctx.arc(f.x, f.y, pulse, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = 'rgba(255,255,220,0.85)';
+        ctx.beginPath();
+        ctx.arc(f.x - pulse * 0.25, f.y - pulse * 0.25, pulse * 0.33, 0, Math.PI * 2);
+        ctx.fill();
+    });
+}
+
+function drawSpatialMap() {
+    if (!state || !state.spatialmap) return;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    state.spatialmap.forEach(node => {
+        const x = node[0], y = node[1], food = node[2], danger = node[3];
+        const size = 84;
+
+        if (food > 0.09) {
+            ctx.fillStyle = `rgba(90,255,120,${Math.min(food * 0.16, 0.16)})`;
+            ctx.fillRect(x, y, size, size);
+        }
+        if (danger > 0.08) {
+            ctx.fillStyle = `rgba(255,60,60,${Math.min(danger * 0.18, 0.18)})`;
+            ctx.fillRect(x, y, size, size);
+        }
+        if (food <= 0.09 && danger <= 0.08) {
+            ctx.fillStyle = 'rgba(120,170,255,0.03)';
+            ctx.fillRect(x, y, size, size);
+        }
+    });
+    ctx.restore();
+}
+
+function drawNeuralVisor() {
+    if (!state) return;
+
+    const range = ANT_SCAN_RANGE;
+    const ang = ANT_SCAN_ANGLE;
+    const color = getVisionModeColor(state);
+    const half = ang / 2;
+    const a0 = toRad(rp.dir - half);
+    const a1 = toRad(rp.dir + half);
+    const pulse = 0.92 + 0.08 * Math.sin(T * 2.2);
+
+    ctx.save();
+    ctx.translate(rp.x, rp.y);
+    ctx.rotate(toRad(rp.dir));
+
+    const visorGradient = ctx.createRadialGradient(0, 0, 0, 0, 0, range);
+    visorGradient.addColorStop(0, colorAlpha(color, 0.11 * pulse));
+    visorGradient.addColorStop(0.55, colorAlpha(color, 0.07 * pulse));
+    visorGradient.addColorStop(0.82, colorAlpha(color, 0.03 * pulse));
+    visorGradient.addColorStop(1, colorAlpha(color, 0.0));
+
+    ctx.fillStyle = visorGradient;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.arc(0, 0, range, -toRad(ang/2), toRad(ang/2));
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.strokeStyle = colorAlpha(color, 0.16 + 0.04 * Math.sin(T * 2.5));
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.arc(0, 0, range * (0.98 + 0.015 * Math.sin(T * 2.8)), -toRad(ang/2), toRad(ang/2));
+    ctx.stroke();
+
+    ctx.strokeStyle = colorAlpha(color, 0.08);
+    ctx.lineWidth = 1;
+    for (let rr of [0.33, 0.66]) {
+        ctx.beginPath();
+        ctx.arc(0, 0, range * rr, -toRad(ang/2), toRad(ang/2));
+        ctx.stroke();
+    }
+
+    const sweepA = -toRad(ang/2) + (toRad(ang) * ((Math.sin(T * 2.8) + 1) * 0.5));
+    const sx = Math.cos(sweepA) * range;
+    const sy = Math.sin(sweepA) * range;
+    const lineGrad = ctx.createLinearGradient(0, 0, sx, sy);
+    lineGrad.addColorStop(0, colorAlpha(color, 0.0));
+    lineGrad.addColorStop(0.6, colorAlpha(color, 0.06));
+    lineGrad.addColorStop(1, colorAlpha(color, 0.22));
+    ctx.strokeStyle = lineGrad;
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(sx, sy);
+    ctx.stroke();
+
+    ctx.restore();
+
+    ctx.save();
+    const soft = ctx.createRadialGradient(rp.x, rp.y, 0, rp.x, rp.y, 24);
+    soft.addColorStop(0, colorAlpha(color, 0.12));
+    soft.addColorStop(1, colorAlpha(color, 0));
+    ctx.fillStyle = soft;
+    ctx.beginPath();
+    ctx.arc(rp.x, rp.y, 24, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+}
+
+function drawTargetLine() {
+    if (!state || !state.target) return;
+    const t = state.target;
+    if (typeof t.x !== 'number' || typeof t.y !== 'number') return;
+    const clr = t.kind === 'home'
+        ? 'rgba(120,197,255,0.55)'
+        : (t.kind === 'memory'
+            ? 'rgba(212,129,255,0.65)'
+            : 'rgba(255,215,110,0.38)');
+    ctx.strokeStyle = clr;
+    ctx.lineWidth = 2;
+    ctx.setLineDash([10, 14]);
+    ctx.lineDashOffset = -T * 20;
+    ctx.beginPath();
+    ctx.moveTo(rp.x, rp.y);
+    ctx.lineTo(t.x, t.y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+}
+
+function drawCaptureBeam() {
+    const food = getBeamTargetFood(state);
+    if (!food) return;
+
+    const pulse = 0.78 + 0.22 * Math.sin(T * 8.0);
+    const beamColor = '#ffd84d';
+    const haloColor = '#fff1a6';
+    const beamWidth = 1.6 + 0.8 * pulse;
+
+    ctx.save();
+
+    const g = ctx.createLinearGradient(rp.x, rp.y, food.x, food.y);
+    g.addColorStop(0, 'rgba(255,216,77,0.16)');
+    g.addColorStop(0.55, 'rgba(255,216,77,0.75)');
+    g.addColorStop(1, 'rgba(255,240,150,0.9)');
+    ctx.strokeStyle = g;
+    ctx.lineWidth = beamWidth;
+    ctx.beginPath();
+    ctx.moveTo(rp.x, rp.y);
+    ctx.lineTo(food.x, food.y);
+    ctx.stroke();
+
+    ctx.strokeStyle = 'rgba(255,245,185,0.26)';
+    ctx.lineWidth = beamWidth * 3.2;
+    ctx.beginPath();
+    ctx.moveTo(rp.x, rp.y);
+    ctx.lineTo(food.x, food.y);
+    ctx.stroke();
+
+    const fx = lerp(food.x, rp.x, 0.06 + 0.03 * pulse);
+    const fy = lerp(food.y, rp.y, 0.06 + 0.03 * pulse);
+
+    const targetGlow = ctx.createRadialGradient(fx, fy, 0, fx, fy, 20);
+    targetGlow.addColorStop(0, 'rgba(255,245,185,0.42)');
+    targetGlow.addColorStop(1, 'rgba(255,245,185,0)');
+    ctx.fillStyle = targetGlow;
+    ctx.beginPath();
+    ctx.arc(fx, fy, 20, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = haloColor;
+    ctx.beginPath();
+    ctx.arc(fx, fy, 2.4 + pulse * 1.2, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
+}
+
+function drawTrail(sc) {
+    particles = particles.filter(p => {
+        p.life -= 0.028;
+        if (p.life <= 0) return false;
+        const s = w2s(p.x, p.y, sc);
+        if (s.x < -40 || s.y < -40 || s.x > c.width + 40 || s.y > c.height + 40) return true;
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.globalAlpha = p.life * 0.8;
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, p.size * (0.5 + p.life), 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+        applyWorldTransform();
+        return true;
+    });
+}
+
+function drawDecorations() {
+    if (!state || !state.decorations) return;
+    const sc = getScale();
+    ctx.save();
+    state.decorations.forEach(d => {
+        const s = w2s(d.x, d.y, sc);
+        if (s.x < -20 || s.x > c.width + 20 || s.y < -20 || s.y > c.height + 20) return;
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        const pulse = 1 + 0.03 * Math.sin(T * 2 + d.x * 0.05);
+        const dayPhase = (Math.sin(T * 0.01) + 1) / 2;
+
+        if (d.type === "rock") {
+            const sz = d.size * pulse;
+            ctx.fillStyle = d.color;
+            ctx.shadowColor = 'rgba(0,0,0,0.4)';
+            ctx.shadowBlur = 4;
+            ctx.beginPath();
+            ctx.ellipse(s.x, s.y, sz*0.8, sz*0.6, 0, 0, Math.PI*2);
+            ctx.fill();
+            ctx.shadowColor = 'transparent';
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = 'rgba(255,255,255,0.15)';
+            ctx.beginPath();
+            ctx.ellipse(s.x - sz*0.2, s.y - sz*0.2, sz*0.3, sz*0.2, 0, 0, Math.PI*2);
+            ctx.fill();
+        } else if (d.type === "bush") {
+            const base = d.size * pulse;
+            for (let i = 0; i < 3; i++) {
+                const offsetX = (i-1) * base * 0.6;
+                const offsetY = Math.sin(T + i) * 1.5;
+                const grad = ctx.createRadialGradient(s.x + offsetX, s.y + offsetY, 0, s.x + offsetX, s.y + offsetY, base*0.7);
+                grad.addColorStop(0, d.color);
+                grad.addColorStop(1, 'rgba(0,0,0,0)');
+                ctx.fillStyle = grad;
+                ctx.beginPath();
+                ctx.arc(s.x + offsetX, s.y + offsetY, base*0.7, 0, Math.PI*2);
+                ctx.fill();
+            }
+        } else if (d.type === "flower") {
+            ctx.fillStyle = d.color;
+            ctx.shadowColor = 'rgba(0,0,0,0.3)';
+            ctx.shadowBlur = 2;
+            for (let i = 0; i < 5; i++) {
+                const angle = (i / 5) * Math.PI * 2 + T * 0.5;
+                const px = s.x + Math.cos(angle) * d.size * 0.7;
+                const py = s.y + Math.sin(angle) * d.size * 0.7;
+                ctx.beginPath();
+                ctx.arc(px, py, d.size * 0.3, 0, Math.PI*2);
+                ctx.fill();
+            }
+            ctx.fillStyle = '#fff8dc';
+            ctx.beginPath();
+            ctx.arc(s.x, s.y, d.size * 0.4, 0, Math.PI*2);
+            ctx.fill();
+            ctx.shadowColor = 'transparent';
+            ctx.shadowBlur = 0;
+        } else if (d.type === "grass") {
+            ctx.strokeStyle = d.color;
+            ctx.lineWidth = 1.5;
+            for (let i = 0; i < 5; i++) {
+                const angle = -0.8 + Math.random() * 1.6;
+                const len = d.size * (0.6 + Math.random() * 0.6);
+                const ex = s.x + Math.cos(angle) * len;
+                const ey = s.y - len * 0.3 + Math.sin(angle) * len * 0.3;
+                ctx.beginPath();
+                ctx.moveTo(s.x, s.y);
+                ctx.lineTo(ex, ey);
+                ctx.stroke();
+            }
+        } else if (d.type === "mushroom") {
+            ctx.fillStyle = '#e0d8c0';
+            ctx.fillRect(s.x - d.size*0.15, s.y - d.size*0.1, d.size*0.3, d.size*0.6);
+            ctx.fillStyle = d.color;
+            ctx.beginPath();
+            ctx.ellipse(s.x, s.y - d.size*0.6, d.size*0.5, d.size*0.3, 0, 0, Math.PI*2);
+            ctx.fill();
+        }
+    });
+    ctx.restore();
+}
+
+function drawRegionLabels() {
+    if (!state || !state.regions) return;
+    const sc = getScale();
+    ctx.save();
+    ctx.font = `${Math.max(11, 12 * sc / 2.5)}px 'Courier New', monospace`;
+    ctx.textAlign = "center";
+    ctx.shadowColor = 'rgba(0,0,0,0.7)';
+    ctx.shadowBlur = 4;
+    state.regions.forEach(r => {
+        const sx = w2s(r.x, r.y, sc);
+        if (sx.x < -100 || sx.x > c.width + 100 || sx.y < -100 || sx.y > c.height + 100) return;
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        const drift = Math.sin(T * 0.5 + r.x * 0.01) * 1.5;
+        const baseAlpha = 0.5 + 0.1 * Math.sin(T * 1.3 + r.y * 0.01);
+        const lines = r.text.split('\n');
+        ctx.fillStyle = `rgba(0,0,0,0.6)`;
+        lines.forEach((line, i) => {
+            ctx.fillText(line, sx.x + 1, sx.y + drift + i * 14 + 1);
+        });
+        ctx.fillStyle = colorAlpha(r.color || '#d4c8a8', baseAlpha);
+        lines.forEach((line, i) => {
+            ctx.fillText(line, sx.x, sx.y + drift + i * 14);
+        });
+    });
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
+    ctx.restore();
+}
+
+function drawAnt() {
+    const x = rp.x;
+    const y = rp.y;
+    const angle = rp.dir * Math.PI / 180;
+
+    const drive = getDominantDriveVisual(state);
+    const modeClr = getModeColor(state);
+    const clr = mixHex(modeClr, drive.color, 0.74);
+    const pulse = 0.82 + drive.pulse * Math.abs(Math.sin(T * (drive.key === 'fear' ? 7.5 : 3.5)));
+
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(angle);
+
+    const auraR = 30 + 8 * pulse;
+    const g = ctx.createRadialGradient(0, 0, 0, 0, 0, auraR);
+    g.addColorStop(0, colorAlpha(clr, 0.20 + 0.06 * pulse));
+    g.addColorStop(0.58, colorAlpha(clr, 0.08 + 0.04 * pulse));
+    g.addColorStop(1, colorAlpha(clr, 0));
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(0, 0, auraR, 0, Math.PI * 2);
+    ctx.fill();
+
+    if (drive.key === 'fear') {
+        ctx.strokeStyle = colorAlpha(clr, 0.28 + 0.14 * pulse);
+        ctx.lineWidth = 1.1;
+        ctx.beginPath();
+        ctx.arc(0, 0, auraR * (0.82 + 0.1 * Math.sin(T * 11.0)), 0, Math.PI * 2);
+        ctx.stroke();
+    }
+
+    ctx.strokeStyle = colorAlpha(clr, 0.7);
+    ctx.lineWidth = 1.6;
+    [[-8,-1],[-8,1],[0,-1],[0,1],[8,-1],[8,1]].forEach(p => {
+        const bx = p[0];
+        const by = p[1] * 9;
+        ctx.beginPath();
+        ctx.moveTo(bx, by);
+        ctx.lineTo(bx + 12, by + p[1] * 10);
+        ctx.stroke();
+    });
+
+    ctx.fillStyle = mixHex('#0d1410', clr, 0.18);
+    ctx.strokeStyle = colorAlpha(clr, 0.58 + 0.16 * pulse);
+    ctx.lineWidth = 1.25;
+
+    ctx.beginPath();
+    ctx.ellipse(-12, 0, 12, 8.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.ellipse(2, 0, 14, 9.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.ellipse(18, 0, 10, 7, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    const bodyGlow = ctx.createLinearGradient(-20, 0, 26, 0);
+    bodyGlow.addColorStop(0, colorAlpha(clr, 0.08));
+    bodyGlow.addColorStop(0.5, colorAlpha(clr, 0.22));
+    bodyGlow.addColorStop(1, colorAlpha(clr, 0.10));
+    ctx.fillStyle = bodyGlow;
+    ctx.beginPath();
+    ctx.ellipse(2, 0, 15, 10, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = clr;
+    ctx.beginPath();
+    ctx.arc(24, -6, 2.2, 0, Math.PI * 2);
+    ctx.arc(24, 6, 2.2, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = colorAlpha(clr, 0.88);
+    ctx.beginPath();
+    ctx.moveTo(18, -2);
+    ctx.quadraticCurveTo(25, -12, 30, -16);
+    ctx.moveTo(18, 2);
+    ctx.quadraticCurveTo(25, 12, 30, 16);
+    ctx.stroke();
+
+    ctx.restore();
+}
+
+function draw() {
+    requestAnimationFrame(draw);
+    T += 0.05;
+    const dayPhase = (Math.sin(T * 0.01) + 1) / 2;
+    const nightAlpha = 0.15 * (1 - dayPhase);
+
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.fillStyle = '#111814';
+    ctx.fillRect(0, 0, c.width, c.height);
+
+    if (!state) return;
+
+    clampCamera();
+    applyWorldTransform();
+
+    const sc = getScale();
+    const view = getViewSize();
+    const viewRect = {x: camera.x, y: camera.y, w: view.w, h: view.h};
+
+    drawGround(viewRect, sc);
+    drawFoodClusters();
+    drawHome();
+    drawSpatialMap();
+    drawWalls();
+    drawPoisonZones();
+    drawHazards();
+    drawFoods();
+    drawDecorations();
+    drawRegionLabels();
+    drawNeuralVisor();
+    drawTargetLine();
+    drawCaptureBeam();
+    drawTrail(sc);
+    drawAnt();
+
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.fillStyle = `rgba(10, 15, 30, ${nightAlpha})`;
+    ctx.fillRect(0, 0, c.width, c.height);
+}
+
+setInterval(fetchState, 100);
+fetchState();
+draw();
+</script>
+</body>
+</html>
